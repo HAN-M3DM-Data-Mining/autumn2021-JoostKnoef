@@ -41,11 +41,11 @@ head(cleanDS1, 10)
 summary(cleanDS1[c("Temperature", "Humidity", "Light", "CO2")])
 
 normalize <- function(x) { # Function takes in a vector
-  return ((x - min(x)) / (max(x) - min(x)) ****** # distance of item value - minimum vector value divided by the range of all vector values 
+  return ((x - min(x)) / (max(x) - min(x)) # distance of item value - minimum vector value divided by the range of all vector values 
 }
 
 cleanDS1_n <- sapply(1:5,
-                    function(y) { ******
+                    function(y) { 
                       normalize(cleanDS1[,x])
                     }) %>% as.data.frame()
 
@@ -63,4 +63,4 @@ testDS_labels <- cleanDS1[470:8143,  1]
 cleanDS_test_pred <- knn(train = as.matrix(trainDS_feat), test = as.matrix(testDS_feat), cl = as.matrix(trainDS_labels), k = 21)
 head(cleanDS_test_pred)
 
-confusionMatrix(cleanDS_test_pred, testDS_labels[[1]], positive = NULL, dnn = c("Prediction", "FALSE")) ******
+confusionMatrix(cleanDS_test_pred, testDS_labels[[1]], positive = NULL, dnn = c("Prediction", "FALSE")) 
