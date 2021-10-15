@@ -1,0 +1,158 @@
+---
+title: "Assigment - Naive Bayes DIY, fakenews WITH MISTAKES"
+author:
+  - Mark van den Bosch - Author
+  - Joost Knoef - Reviewer
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+   html_notebook:
+   toc: true
+    toc_depth: 2
+---
+  
+  #load libraries
+```{r}
+library(tidyverse)
+library(tm)
+library(caret)
+library(wordcloud)
+library(e1071)
+```
+# Business Understanding
+Naive Bayes is a probabilistic algorithm that’s typically used for filtering out spam.
+
+#Data Understanding
+The dataset consists of 5 columns with 20800 rows including the headers.
+
+ID: identification number of the possible fake news
+Title: the title of the article 
+Author: the auther of the article
+Text: the text of the news that is going to be checked
+Label: 0 or 1 for reliable or unreliable
+
+##read dataset
+```{r}
+url <- "https://github.com/HAN-M3DM-Data-Mining/assignments/raw/master/datasets/NB-fakenews.csv"
+rawFN <- read.csv(url)
+```
+
+##view full dataset
+```{r}
+view(rawFN)
+```
+
+##view part of dataset
+```{r}
+head(rawFN)
+```
+
+##Change label into type factor
+```{r}
+class(rawFN$label)
+rawFN$label <- rawFN$label %>% factor %>% relevel("1")  ## integer is supposed to be the factor otherwise the confusionmatrix will have two things that arent of the same type
+class(rawFN$label)
+```
+
+
+##Wordcloud
+```{r}
+index1 <- rawFN %>% filter(label == "0")
+index2 <- rawFN %>% filter(label == "1")
+wordcloud(index1$text, max.words = 20, scale = c(4, 0.8), colors= c("red1","red2","red3","red"))
+wordcloud(index2$text, max.words = 20, scale = c(4, 0.8), colors= c("blue1","blue2","blue3","blue"))
+```
+
+According to the wordclouds in alot of fake news the names hilary clinton and trump have been mentioned but its noticable that in real news hilary clinton name doesnt come up while trumps name still does. 
+
+  ##Taking a random sample of the rawFN data to make the size smaller
+  Because the size is too large for some function to perform.
+```{r}
+sample_rawFN<- rawFN[1:4000,1:5]
+```
+
+#View sample dataset
+```{r}
+view(sample_rawFN)
+```
+
+##Convert text Corpus
+A corpus will be created, which refers to a collection of text documents. In this case each message is considered a text document.
+```{r message=FALSE}
+rawCorpus1 <- Corpus(VectorSource(sample_rawFN$text))
+```
+For cleaning the function tm_map() will be used. Firstly everything will be changed to the lowercase. Secondly the numbers will be removed as these will contain little information on a message being spam or not.
+
+For computation efficiency it is important to eliminate all items from a dataset of which you’re rather confident that they only add little information to your model. In this case words like “and” or “but” will be equally common in both fake and real messages. Therefore those words will be filtered out before modeling starts. For the same reasoning punctuation will be removed. The last step is to remove additional whitespace.
+##Make lowercase, remove numbers, revmove punctuation, remove whitespace
+```{r message=FALSE}
+cleanCorpus1 <- rawCorpus1 %>% tm_map(tolower) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removeWords, stopwords()) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+```
+
+##Transform cleaned up texts into matrix
+each word in each article will get its own column each row will be a article.
+
+Now that the texts are clean the messages will be transformed to a matrix. Each word in the each message will get its own column, each row will be a message and the cells of the matrix will contain a word count.
+```{r message=FALSE}
+cleanDTM1 <- cleanCorpus1 %>% DocumentTermMatrix
+```
+
+Before modeling can be started all datasets need to be split into train and test sets. For this the function createDataPartition() from the caret package will be used. It can be used to create balanced splits of the data. If the y argument to this function is a factor, the random sampling occurs within each class and should preserve the overall class distribution of the data. In this case it will create a 50/50% split.
+
+##Create split indices
+```{r}
+set.seed(1234)
+trainIndex1 <- createDataPartition(sample_rawFN$label, p = .75,
+                                   list = FALSE,
+                                   times = 1)
+head(trainIndex1)
+```
+
+
+##Applying split indices
+```{r}
+##Applying split indices to dataframe
+trainDF1 <- sample_rawFN[trainIndex1, ]   ## the - is supposed to be on the other one 
+testDF1 <- sample_rawFN[-trainIndex1, ]
+# Apply split indices to Corpus
+trainCorpus1 <- cleanCorpus1[trainIndex1]
+testCorpus1 <- cleanCorpus1[-trainIndex1]
+# Apply split indices to DTM
+trainDTM1 <- cleanDTM1[trainIndex1, ]
+testDTM1 <- cleanDTM1[-trainIndex1, ]
+```
+
+
+##Eliminating infrequent words
+```{r}
+freqWords1 <- trainDTM1 %>% findFreqTerms(500)   ##vector becomes too big with only 5 instead of 500
+trainDTM1 <- DocumentTermMatrix(trainCorpus1, list(dictionary = freqWords1))
+testDTM1 <- DocumentTermMatrix(testCorpus1, list(dictionary = freqWords1))
+```
+Now that the number of features is reduced.
+
+Another issue is that the Naive Bayes classifier is typically trained on categorical features. This will be corrected below.
+
+##Applying categorical factors instead of count of words
+If word appears in document then "yes" if not "no"
+```{r}
+convert_counts1 <- function(x) {
+  x <- ifelse(x > 0, 1, 0) %>% factor(levels = c(0,1), labels = c("No", "Yes"))
+}
+nColsDTM1 <- dim(trainDTM1)[2]
+trainDTM1 <- apply(trainDTM1, MARGIN = 2, convert_counts1)
+testDTM1 <- apply(testDTM1, MARGIN = 2, convert_counts1)
+head(trainDTM1[,1:10])
+```
+
+##Creating and testing the model
+
+Now everything is in place to start training the model and evaluate against the test dataset. The naiveBayes() function is part of the e1071 package. It takes in the features and labels of our training dataset and returns a trained model.
+```{r}
+nbayesModel1 <- naiveBayes(trainDTM1, trainDF1$label, laplace = 1)
+predVec1 <- predict(nbayesModel1, testDTM1)
+confusionMatrix(predVec1, testDF1$label, positive = "1", dnn = c("Prediction", "True"))
+```
