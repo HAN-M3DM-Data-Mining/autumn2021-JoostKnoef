@@ -5,11 +5,13 @@ library(class)
 library(caret)
 library(magrittr)
 
-
+Author: Joost Knoef
+Reviewer: Mark van den Bosch
 
 
 ## Business Understanding
-
+We want to make a model which predicts if there are people in the room or not, based on different variables. 
+In this way, no camera's have to be placed in a room, to be able to check if there is someone in the room
 
 ## Data Understanding
 Three data sets are submitted, for training and testing. Ground-truth occupancy was obtained from time stamped pictures that were taken every minute.
